@@ -6,6 +6,7 @@ import socket
 import threading
 import json
 from datetime import datetime
+import os
 
 
 UDP_IP = '127.0.0.1'
@@ -20,7 +21,7 @@ class HttpHandler(BaseHTTPRequestHandler):
     
     def do_POST(self):
         data = self.rfile.read(int(self.headers['Content-Length']))
-        #print(data)
+        # print(data)
         socket_client(UDP_IP, UDP_PORT, data)
         self.send_response(302)
         self.send_header('Location', '/')
@@ -70,10 +71,16 @@ def socket_server(ip, port):
             data_parse = urllib.parse.unquote_plus(data.decode())
             #print(data_parse)
             data_dict = {key: value for key, value in [el.split('=') for el in data_parse.split('&')]}
-            with open(BASE_DIR.joinpath('storage/data.json'), 'a', encoding='utf-8') as fd:
-                # data_json = {}
-                # data_json.update({"datetime.now()": data_dict})
-                json.dump({str(datetime.now()): data_dict}, fd, ensure_ascii=False)
+            upload = {}
+                
+            with open(BASE_DIR.joinpath('storage/data.json'), 'r', encoding='utf-8') as fd:
+                text = fd.readline()
+                if text:
+                    upload = json.loads(text)
+                
+            with open(BASE_DIR.joinpath('storage/data.json'), 'w', encoding='utf-8') as fd:                
+                upload.update({str(datetime.now()): data_dict})
+                json.dump(upload, fd, ensure_ascii=False)
 
     except KeyboardInterrupt:
         print(f'Destroy server')
