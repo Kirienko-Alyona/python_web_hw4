@@ -2,6 +2,18 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 import urllib.parse
 import mimetypes
 import pathlib
+import socket
+import threading
+import json
+from datetime import datetime
+
+
+UDP_IP = '127.0.0.1'
+UDP_PORT = 5000
+MESSAGE = "Python Web development"
+WEB_PORT = 3000
+
+BASE_DIR = pathlib.Path()
 
 
 class HttpHandler(BaseHTTPRequestHandler):
@@ -9,10 +21,7 @@ class HttpHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         data = self.rfile.read(int(self.headers['Content-Length']))
         #print(data)
-        data_parse = urllib.parse.unquote_plus(data.decode())
-        #print(data_parse)
-        data_dict = {key: value for key, value in [el.split('=') for el in data_parse.split('&')]}
-        print(data_dict)
+        socket_client(UDP_IP, UDP_PORT, data)
         self.send_response(302)
         self.send_header('Location', '/')
         self.end_headers()
@@ -48,8 +57,38 @@ class HttpHandler(BaseHTTPRequestHandler):
             self.wfile.write(file.read())        
 
 
-def run(server_class=HTTPServer, handler_class=HttpHandler):
-    server_address = ('', 3000)
+def socket_server(ip, port):
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    server = ip, port
+    sock.bind(server)
+    try:
+        while True:
+            data, address = sock.recvfrom(1024)         
+            print(f'Received data: {data.decode()} from: {address}')
+            sock.sendto(data, address)
+            print(f'Send data: {data.decode()} to: {address}')
+            data_parse = urllib.parse.unquote_plus(data.decode())
+            #print(data_parse)
+            data_dict = {key: value for key, value in [el.split('=') for el in data_parse.split('&')]}
+            with open(BASE_DIR.joinpath('storage/data.json'), 'w', encoding='utf-8') as fd:
+                json.dump({str(datetime.now()): data_dict}, fd, ensure_ascii=False)
+
+    except KeyboardInterrupt:
+        print(f'Destroy server')
+    finally:
+        sock.close()
+        
+def socket_client(ip, port, data):
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    server = ip, port
+    sock.sendto(data, server)
+    print(f'Send data: {data.decode()} to server: {server}')
+    response, address = sock.recvfrom(1024)
+    print(f'Response data: {response.decode()} from address: {address}')    
+    sock.close()        
+                                
+def run_http_server(server_class=HTTPServer, handler_class=HttpHandler):
+    server_address = (UDP_IP, WEB_PORT)
     http = server_class(server_address, handler_class)
     try:
         http.serve_forever()
@@ -58,4 +97,10 @@ def run(server_class=HTTPServer, handler_class=HttpHandler):
 
 
 if __name__ == '__main__':
-    run()
+    run_web_app = threading.Thread(target=run_http_server)
+    server = threading.Thread(target=socket_server, args=(UDP_IP, UDP_PORT))
+
+    server.start()
+    run_web_app.start()
+    server.join()
+    print('Done!')
