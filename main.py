@@ -6,13 +6,13 @@ import socket
 import threading
 import json
 from datetime import datetime
-import os
+import logging
 
 
 UDP_IP = '127.0.0.1'
 UDP_PORT = 5000
-MESSAGE = "Python Web development"
 WEB_PORT = 3000
+SIZE_BUFFER = 1024
 
 BASE_DIR = pathlib.Path()
 
@@ -57,6 +57,23 @@ class HttpHandler(BaseHTTPRequestHandler):
         with open(f'.{self.path}', 'rb') as file:
             self.wfile.write(file.read())        
 
+def save_data(data):
+    data_parse = urllib.parse.unquote_plus(data.decode())
+    #print(data_parse)
+    try:
+        data_dict = {key: value for key, value in [el.split('=') for el in data_parse.split('&')]}
+        upload = {}  
+        with open(BASE_DIR.joinpath("storage/data.json"), 'r', encoding='utf-8') as fd:
+            text = fd.readline()
+            if text:
+                upload = json.loads(text)
+        with open(BASE_DIR.joinpath("storage/data.json"), 'w', encoding='utf-8') as fd:                
+            upload.update({str(datetime.now()): data_dict})
+            json.dump(upload, fd, ensure_ascii=False)   
+    except ValueError as err:
+        logging.error(f"Field parse data {body} with error {err}")
+    except OSError as err:
+        logging.error(f"Field write data {body} with error {err}")         
 
 def socket_server(ip, port):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -64,40 +81,26 @@ def socket_server(ip, port):
     sock.bind(server)
     try:
         while True:
-            data, address = sock.recvfrom(1024)         
-            print(f'Received data: {data.decode()} from: {address}')
-            sock.sendto(data, address)
-            print(f'Send data: {data.decode()} to: {address}')
-            data_parse = urllib.parse.unquote_plus(data.decode())
-            #print(data_parse)
-            data_dict = {key: value for key, value in [el.split('=') for el in data_parse.split('&')]}
-            upload = {}
-                
-            with open(BASE_DIR.joinpath('storage/data.json'), 'r', encoding='utf-8') as fd:
-                text = fd.readline()
-                if text:
-                    upload = json.loads(text)
-                
-            with open(BASE_DIR.joinpath('storage/data.json'), 'w', encoding='utf-8') as fd:                
-                upload.update({str(datetime.now()): data_dict})
-                json.dump(upload, fd, ensure_ascii=False)
-
+            data, address = sock.recvfrom(SIZE_BUFFER)         
+            #print(f'Received data: {data.decode()} from: {address}')
+            #sock.sendto(data, address)
+            #print(f'Send data: {data.decode()} to: {address}')
+            save_data(data)
     except KeyboardInterrupt:
-        print(f'Destroy server')
+        logging.info("Destroy server stopped")
     finally:
         sock.close()
         
-def socket_client(ip, port, data):
+def socket_client(data):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    server = ip, port
-    sock.sendto(data, server)
-    print(f'Send data: {data.decode()} to server: {server}')
-    response, address = sock.recvfrom(1024)
-    print(f'Response data: {response.decode()} from address: {address}')    
+    sock.sendto(data, (UDP_IP, UDP_PORT))
+    #print(f'Send data: {data.decode()} to server: {server}')
+    #response, address = sock.recvfrom(SIZE_BUFFER)
+    #print(f'Response data: {response.decode()} from address: {address}')    
     sock.close()        
                                 
 def run_http_server(server_class=HTTPServer, handler_class=HttpHandler):
-    server_address = (UDP_IP, WEB_PORT)
+    server_address = ("0.0.0.0", WEB_PORT)
     http = server_class(server_address, handler_class)
     try:
         http.serve_forever()
@@ -106,6 +109,14 @@ def run_http_server(server_class=HTTPServer, handler_class=HttpHandler):
 
 
 if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO, format="%(threadName)s %(message)s")
+    STORAGE_DIR = pathlib.Path().joinpath('storage')
+    FILE_STORAGE = STORAGE_DIR / 'data.json'
+    
+    if not FILE_STORAGE.exists():
+        with open(FILE_STORAGE, 'w', encoding='utf-8') as fd:
+            json.dump({}, fd, ensure_ascii=False)
+            
     run_web_app = threading.Thread(target=run_http_server)
     server = threading.Thread(target=socket_server, args=(UDP_IP, UDP_PORT))
 
