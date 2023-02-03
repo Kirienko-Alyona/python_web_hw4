@@ -13,7 +13,6 @@ COPY . .
 
 # Установим зависимости внутри контейнера
 RUN pip install poetry
-#RUN poetry init #інколи poetry install видає помилку "does not contain any element"
 RUN poetry install
 
 # Обозначим порт где работает приложение внутри контейнера
