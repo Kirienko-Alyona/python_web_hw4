@@ -13,7 +13,7 @@ COPY . .
 
 # Установим зависимости внутри контейнера
 RUN pip install poetry
-RUN --no-root poetry install
+RUN poetry install
 
 # Обозначим порт где работает приложение внутри контейнера
 EXPOSE 3000
