@@ -71,9 +71,9 @@ def save_data(data):
             upload.update({str(datetime.now()): data_dict})
             json.dump(upload, fd, ensure_ascii=False)   
     except ValueError as err:
-        logging.error(f"Field parse data {body} with error {err}")
+        logging.error(f"Field parse data {data_parse} with error {err}")
     except OSError as err:
-        logging.error(f"Field write data {body} with error {err}")         
+        logging.error(f"Field write data {data_parse} with error {err}")         
 
 def socket_server(ip, port):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
